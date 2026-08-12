@@ -45,9 +45,15 @@ def test_short_sequence_and_lowercase() -> None:
 
 
 @pytest.mark.parametrize("function", [minimizers, naive_minimizers])
-@pytest.mark.parametrize(("k", "w", "message"), [(0, 1, "k"), (1, 0, "w")])
+@pytest.mark.parametrize(
+    ("k", "w", "message"),
+    [
+        (0, 1, "k must be greater than zero"),
+        (1, 0, "w must be greater than zero"),
+    ],
+)
 def test_invalid_parameters(function: object, k: int, w: int, message: str) -> None:
-    with pytest.raises(ValueError, match=message):
+    with pytest.raises(ValueError, match=f"^{message}$"):
         list(function("ACGT", k, w))  # type: ignore[operator]
 
 

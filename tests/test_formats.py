@@ -27,6 +27,53 @@ def test_fastq_with_optional_repeated_name() -> None:
     ]
 
 
+def test_parser_preserves_spaces_and_reports_physical_line_numbers() -> None:
+    assert list(parse_records([">one\n", " AC \n"])) == [SequenceRecord("one", "AC")]
+    with pytest.raises(ValueError, match=r"^line 2: blank lines are not allowed$"):
+        list(parse_records([">one\n", "\n"]))
+    with pytest.raises(ValueError, match=r"^line 1: record name is empty$"):
+        list(parse_records([">\n", "AC\n"]))
+
+
+def test_multiline_fasta_joins_without_separators() -> None:
+    assert list(parse_records([">one\n", "AC\n", "GT\n"])) == [SequenceRecord("one", "ACGT")]
+
+
+def test_del_control_character_is_rejected() -> None:
+    with pytest.raises(ValueError, match=r"^line 1: record name contains a control character$"):
+        list(parse_records([">\x7f\n", "AC\n"]))
+
+
+@pytest.mark.parametrize("marker", ["+", ">"])
+def test_fastq_sequence_rejects_all_reserved_markers(marker: str) -> None:
+    with pytest.raises(ValueError, match=r"^line 2: invalid FASTQ sequence$"):
+        list(parse_records(["@one\n", f"{marker}A\n", "+\n", "!!\n"]))
+
+
+def test_fastq_sequence_preserves_trailing_spaces() -> None:
+    assert list(parse_records(["@one\n", "AC \n", "+\n", "!!!\n"])) == [
+        SequenceRecord("one", "AC ")
+    ]
+
+
+def test_sequence_preserves_terminal_x_before_newline() -> None:
+    assert list(parse_records([">one\n", "ACX\n"])) == [SequenceRecord("one", "ACX")]
+
+
+def test_errors_report_the_originating_header_line() -> None:
+    with pytest.raises(ValueError, match=r"^line 3: record name is empty$"):
+        list(parse_records([">one\n", "AC\n", ">\n", "GT\n"]))
+    with pytest.raises(ValueError, match=r"^line 1: record name is empty$"):
+        list(parse_records(["@\n", "AC\n", "+\n", "!!\n"]))
+
+
+def test_exact_terminal_record_errors() -> None:
+    with pytest.raises(ValueError, match=r"^input is empty$"):
+        list(parse_records([]))
+    with pytest.raises(ValueError, match=r"^final FASTA record has no sequence$"):
+        list(parse_records([">one\n"]))
+
+
 @pytest.mark.parametrize(
     ("text", "message"),
     [

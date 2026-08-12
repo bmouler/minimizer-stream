@@ -1,13 +1,18 @@
 # minimizer-stream
 
-[![CI](https://github.com/bmouler/minimizer-stream/actions/workflows/ci.yml/badge.svg)](https://github.com/bmouler/minimizer-stream/actions/workflows/ci.yml) [![branch coverage](https://img.shields.io/badge/branch%20coverage-100%25-brightgreen)](https://github.com/bmouler/minimizer-stream/actions/workflows/ci.yml) [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/) [![MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![CI](https://github.com/bmouler/minimizer-stream/actions/workflows/ci.yml/badge.svg)](https://github.com/bmouler/minimizer-stream/actions/workflows/ci.yml)
+![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)
+![Types](https://img.shields.io/badge/types-mypy%20strict-blue)
+![Mutation](https://img.shields.io/badge/mutation-98%25%20killed-brightgreen)
+![Python](https://img.shields.io/badge/python-3.11%2B-blue)
+[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 A dependency-free Python library and command-line program that streams canonical minimizer sketches from FASTA and four-line FASTQ. Output includes record, zero-based position, stable 64-bit FNV-1a hash, canonical strand, and canonical k-mer.
 
 ## Install
 
 ```bash
-python -m pip install .
+python -m pip install minimizer-stream
 ```
 
 For development and verification:
@@ -39,6 +44,10 @@ assert list(minimizers("ACGTTGCA", 3, 2)) == list(naive_minimizers("ACGTTGCA", 3
 
 ## Algorithm
 
+```mermaid
+flowchart LR; R[FASTA/FASTQ] --> K[canonical k-mers]; K --> H[FNV-1a 64-bit]; H --> D[monotonic deque, window w]; D --> M[leftmost minimum]; M --> U{deduplicate?}; U --> O[record, position, hash, strand, kmer]
+```
+
 Each k-mer is compared lexicographically with its reverse complement; the smaller representation is canonical, with palindromes assigned to the forward strand. Canonical strings are hashed with deterministic 64-bit FNV-1a, never Python's process-randomized `hash`. A monotonic deque retains possible minima for each window, removing expired entries from the front and strictly larger hashes from the back. Keeping equal hashes preserves deterministic leftmost tie-breaking.
 
 Constructing, reverse-complementing, and hashing each canonical k-mer costs $O(k)$ in this pure-Python implementation. The monotonic-deque path is therefore $O(nk)$ total with $O(w+k)$ working memory, versus $O(n(k+w))$ for `naive_minimizers`, which additionally scans each minimizer window. Non-ACGT characters reset both k-mer construction and the minimizer window, so no output spans an invalid base.
@@ -55,13 +64,31 @@ On an Apple M3 Max with Python 3.11.12, that command produced 49,931 identical s
 
 ## Verification
 
-CI runs Ruff and the full test suite on Python 3.11 and 3.12. Its exact coverage command is:
+CI runs Ruff, strict mypy, and the full property-based and deterministic test suites on Linux and macOS with Python 3.11–3.13. Its exact coverage command is:
 
 ```bash
 pytest --cov=minimizer_stream --cov-branch --cov-fail-under=100
 ```
 
 Tests include reverse complements, palindromes, ties, invalid-base resets, short and lowercase sequences, FASTA, FASTQ, malformed records, invalid parameters, subprocess execution from a clean temporary directory, TSV, JSONL, standard input, and deduplication.
+
+### Mutation testing
+
+From the repository root, reproduce the mutation run with:
+
+```bash
+source .venv/bin/activate
+mutmut run
+mutmut results
+```
+
+Mutation testing generated 392 mutants and killed 388 (98.98%). The remaining 4 survivors were reviewed as behavior-equivalent, not missed mutants; the run had zero suspicious mutants and zero timeouts.
+
+| Behavior-equivalent rationale | Count |
+|---|---:|
+| ASCII codec alias | 1 |
+| Initial `None` versus empty value, compared only to `Minimizer` instances | 2 |
+| `typing.cast` is an identity operation at runtime | 1 |
 
 ## Limitations
 

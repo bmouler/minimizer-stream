@@ -73,7 +73,41 @@ def test_main_success_paths(tmp_path: Path, capsys: pytest.CaptureFixture[str]) 
     assert main([str(input_path), "-k", "2", "-w", "2"]) == 0
     assert capsys.readouterr().out.count("\n") == 3
     assert main([str(input_path), "-k", "2", "-w", "2", "--format", "jsonl"]) == 0
-    assert json.loads(capsys.readouterr().out.splitlines()[0])["record"] == "read"
+    jsonl_output = capsys.readouterr().out.splitlines()
+    assert json.loads(jsonl_output[0])["record"] == "read"
+    assert jsonl_output[0] == (
+        '{"record":"read","position":0,"hash":650881229941436253,"strand":"+","kmer":"AC"}'
+    )
+
+
+def test_main_passes_deduplication_to_stream(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    input_path = tmp_path / "read.fa"
+    input_path.write_text(">read\nACGTA\n", encoding="ascii")
+    assert main([str(input_path), "-k", "2", "-w", "2", "--format", "jsonl", "--deduplicate"]) == 0
+    assert len(capsys.readouterr().out.splitlines()) == 2
+
+
+def test_help_documents_the_cli_contract(capsys: pytest.CaptureFixture[str]) -> None:
+    with pytest.raises(SystemExit, match="0"):
+        main(["--help"])
+    assert capsys.readouterr().out == (
+        "usage: minimizer-stream [-h] -k K -w W [--format {tsv,jsonl}] [--deduplicate]\n"
+        "                        input\n"
+        "\n"
+        "Command-line interface for minimizer-stream.\n"
+        "\n"
+        "positional arguments:\n"
+        "  input                 FASTA/FASTQ path, or - for standard input\n"
+        "\n"
+        "options:\n"
+        "  -h, --help            show this help message and exit\n"
+        "  -k K                  k-mer length\n"
+        "  -w W                  window size in k-mers\n"
+        "  --format {tsv,jsonl}\n"
+        "  --deduplicate         omit consecutive selections of the same minimizer\n"
+    )
 
 
 def test_module_entrypoint_in_process(
@@ -89,16 +123,22 @@ def test_module_entrypoint_in_process(
 @pytest.mark.parametrize(
     ("arguments", "message"),
     [
-        (["-", "-k", "0", "-w", "1"], "k must be greater"),
-        (["-", "-k", "1", "-w", "0"], "w must be greater"),
+        (["-", "-k", "0", "-w", "1"], "k must be greater than zero"),
+        (["-", "-k", "1", "-w", "0"], "w must be greater than zero"),
         (["-", "-k", "1"], "required"),
+        (["-", "-w", "1"], "required"),
+        (["-", "-k", "1", "-w", "1", "--format", "xml"], "invalid choice"),
     ],
 )
 def test_main_reports_argument_errors(
     arguments: list[str], message: str, capsys: pytest.CaptureFixture[str]
 ) -> None:
     assert main(arguments) == 2
-    assert message in capsys.readouterr().err
+    error = capsys.readouterr().err
+    if "must be greater" in message:
+        assert error == f"minimizer-stream: error: {message}\n"
+    else:
+        assert message in error
 
 
 def test_main_reports_malformed_and_missing_files(
