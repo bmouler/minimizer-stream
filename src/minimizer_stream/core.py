@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections import deque
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
+from typing import Literal
 
 _MASK64 = (1 << 64) - 1
 _COMPLEMENT = str.maketrans("ACGT", "TGCA")
@@ -17,7 +18,7 @@ class Minimizer:
 
     position: int
     hash: int
-    strand: str
+    strand: Literal["+", "-"]
     kmer: str
 
 
@@ -55,6 +56,7 @@ def _canonical_kmers(sequence: Iterable[str], k: int) -> Iterator[Minimizer | No
             continue
         forward = "".join(run)
         reverse = forward.translate(_COMPLEMENT)[::-1]
+        strand: Literal["+", "-"]
         if forward <= reverse:
             canonical, strand = forward, "+"
         else:
