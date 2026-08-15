@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "minimizer-stream"
-version = "1.0.0"
+version = "1.0.1"
 description = "Streaming canonical minimizer sketches for FASTA and FASTQ"
 readme = "README.md"
 requires-python = ">=3.11"
