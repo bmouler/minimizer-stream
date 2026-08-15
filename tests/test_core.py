@@ -12,6 +12,10 @@ def test_stable_hash_known_vector() -> None:
     assert stable_hash64("ACGT") == 0x9A90178BA8FEDA4E
 
 
+def test_stable_hash_block_and_tail_vector() -> None:
+    assert stable_hash64("ACGTA") == 0xA1B21150290C877D
+
+
 def test_forward_and_reverse_complements_share_canonical_form() -> None:
     forward = list(minimizers("AAAC", 4, 1))
     reverse = list(minimizers("GTTT", 4, 1))
@@ -42,6 +46,41 @@ def test_invalid_base_resets_windows_and_positions_remain_absolute() -> None:
 def test_short_sequence_and_lowercase() -> None:
     assert list(minimizers("AC", 3, 1)) == []
     assert list(minimizers("acgt", 4, 1)) == list(minimizers("ACGT", 4, 1))
+
+
+def test_k21_string_path_preserves_canonical_strands_and_resets() -> None:
+    forward = list(minimizers("A" * 21, 21, 1))
+    reverse = list(minimizers("T" * 21, 21, 1))
+    assert forward == [Minimizer(0, stable_hash64("A" * 21), "+", "A" * 21)]
+    assert reverse == [Minimizer(0, stable_hash64("A" * 21), "-", "A" * 21)]
+    assert list(minimizers("acgt" * 6, 21, 2)) == list(naive_minimizers("acgt" * 6, 21, 2))
+    assert list(minimizers("ACGT" * 5, 21, 1)) == []
+
+    for invalid in ("N", "é"):
+        sequence = "A" * 23 + invalid + "T" * 23
+        result = list(minimizers(sequence, 21, 3))
+        assert result == list(naive_minimizers(sequence, 21, 3))
+        assert [item.position for item in result] == [0, 24]
+
+
+def test_k21_string_path_preserves_ties_expiry_and_deduplication() -> None:
+    ties = "A" * 25
+    tied = list(minimizers(ties, 21, 3))
+    assert tied == list(naive_minimizers(ties, 21, 3))
+    assert [item.position for item in tied] == [0, 1, 2]
+
+    sequence = "ACGGCAAGTGAGCAAGGTCGAAGC"
+    repeated = list(minimizers(sequence, 21, 3))
+    deduplicated = list(minimizers(sequence, 21, 3, deduplicate=True))
+    assert repeated == list(naive_minimizers(sequence, 21, 3))
+    assert deduplicated == list(naive_minimizers(sequence, 21, 3, deduplicate=True))
+    assert len(repeated) == 2
+    assert deduplicated == [repeated[0]]
+
+
+def test_k21_non_string_iterable_retains_general_streaming_path() -> None:
+    sequence = "GATTACA" * 5
+    assert list(minimizers(iter(sequence), 21, 4)) == list(naive_minimizers(iter(sequence), 21, 4))
 
 
 @pytest.mark.parametrize("function", [minimizers, naive_minimizers])

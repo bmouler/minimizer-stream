@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+- Added a packed rolling two-bit fast path for exact-string `k=21` minimizers and accelerated bit-identical FNV-1a hashing.
+- Added a deterministic end-to-end FASTA/FASTQ parse and minimizer benchmark with exact oracle equality.
+
+
 ## [1.0.0] - 2026-08-12
 
 First stable release.

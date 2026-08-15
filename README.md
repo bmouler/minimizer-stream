@@ -48,19 +48,24 @@ assert list(minimizers("ACGTTGCA", 3, 2)) == list(naive_minimizers("ACGTTGCA", 3
 flowchart LR; R[FASTA/FASTQ] --> K[canonical k-mers]; K --> H[FNV-1a 64-bit]; H --> D[monotonic deque, window w]; D --> M[leftmost minimum]; M --> U{deduplicate?}; U --> O[record, position, hash, strand, kmer]
 ```
 
-Each k-mer is compared lexicographically with its reverse complement; the smaller representation is canonical, with palindromes assigned to the forward strand. Canonical strings are hashed with deterministic 64-bit FNV-1a, never Python's process-randomized `hash`. A monotonic deque retains possible minima for each window, removing expired entries from the front and strictly larger hashes from the back. Keeping equal hashes preserves deterministic leftmost tie-breaking.
+The general iterable path compares each k-mer lexicographically with its reverse complement; the exact-string `k=21` path instead maintains equivalent rolling two-bit forward and reverse encodings and materializes strings only for selected minima. Palindromes stay on the forward strand. Canonical values are hashed with deterministic 64-bit FNV-1a, never Python's process-randomized `hash`. A monotonic deque retains possible minima for each window, removing expired entries from the front and strictly larger hashes from the back. Keeping equal hashes preserves the documented leftmost tie-break.
 
-Constructing, reverse-complementing, and hashing each canonical k-mer costs $O(k)$ in this pure-Python implementation. The monotonic-deque path is therefore $O(nk)$ total with $O(w+k)$ working memory, versus $O(n(k+w))$ for `naive_minimizers`, which additionally scans each minimizer window. Non-ACGT characters reset both k-mer construction and the minimizer window, so no output spans an invalid base.
+The general iterable path constructs, reverse-complements, and hashes each canonical k-mer in $O(k)$, for $O(nk)$ total time and $O(w+k)$ working memory. The exact-string `k=21` path keeps packed rolling state, so its fixed-width work is $O(n)$ with $O(w)$ per-call memory; the four-base FNV transition table is immutable module state. `naive_minimizers` remains the executable $O(n(k+w))$ oracle. Non-ACGT characters reset both k-mer construction and the minimizer window, so no output spans an invalid base.
 
 ## Reproducible capability evidence
 
-The deterministic benchmark seeds its input and first requires both implementations to produce exactly identical objects:
+`PYTHONPATH=src python benchmarks/benchmark.py --json` parses 16 deterministic FASTA/FASTQ
+records totaling 128,000 bases, streams canonical `k=21`, `w=100` minimizers with
+deduplication, and materializes 2,220 ordered objects. It refuses to time results that differ
+from `naive_minimizers`.
 
-```bash
-python benchmarks/benchmark.py --length 50000 --k 21 --w 50 --repeats 3
-```
-
-On an Apple M3 Max with Python 3.11.12, that command produced 49,931 identical selections and median times of 0.130359 seconds for the deque implementation and 0.195500 seconds for the oracle, a 1.50x speedup. Timing depends on hardware and Python version; the durable claim is removing the extra $O(nw)$ window scan through amortized $O(n)$ deque maintenance, while shared k-mer construction remains $O(nk)$. The exhaustive deterministic randomized test also compares both APIs across lengths 0–39 and all combinations of `k` and `w` from 1–5.
+On an Apple M3 Max with CPython 3.11.12 on 2026-08-15, 11 samples after two warmups measured
+frozen baseline `5d37de9d4ff4` at **307.803 ms** median and the packed rolling implementation
+at **143.045 ms**, a **2.152x speedup**. Both runs produced SHA-256
+`faaba963089826ffa15afd9f9d9e0d63e3dd5d6de96ea6a3632743fb000fb008`. Fixture
+generation and interpreter startup are excluded; record parsing, minimizer generation, and
+output materialization are included. These are local in-process timings; rerun with
+`PYTHONPATH` pointed at the desired source worktree.
 
 ## Verification
 
